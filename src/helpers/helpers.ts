@@ -1,5 +1,13 @@
 import crypto from "crypto";
-import { Choice } from "../models/poll";
+import dayjs from "dayjs";
+import {
+  Choice,
+  RocketMeetPollFromDB,
+  ChoiceFromDB,
+  VoteFromDB,
+  PieObj,
+  ChartDataArgs,
+} from "../models/poll";
 
 export const isChoicePresentInPollChoices = (
   choiceToSearch: Choice,
@@ -35,4 +43,75 @@ export const decrypt = (text: string): string => {
   let decrypted = decipher.update(encryptedText);
   decrypted = Buffer.concat([decrypted, decipher.final()]);
   return decrypted.toString();
+};
+
+export const ChartData = (pollFromDB: RocketMeetPollFromDB): ChartDataArgs => {
+  const obj: PieObj = {};
+  const arr = pollFromDB.choices;
+
+  arr.forEach((el: ChoiceFromDB) => {
+    obj[el._id] = {
+      start: el.start,
+      end: el.end,
+      voters: [],
+    };
+  });
+
+  const votesArr = pollFromDB?.votes;
+  if (votesArr) {
+    votesArr.forEach((vote: VoteFromDB) => {
+      vote.choices.forEach((choice: ChoiceFromDB) => {
+        obj[choice._id].voters.push(vote.name);
+      });
+    });
+  }
+
+  const objectKeySet = Object.keys(obj);
+
+  const getRandom = (): number => {
+    let max = 255;
+    let min = 10;
+    return min + Math.floor(Math.random() * (max - min));
+  };
+
+  const getColor = (): string => {
+    let opacity = 0.6;
+    let first = getRandom();
+    let second = getRandom();
+    let third = getRandom();
+    let result = "";
+
+    result = `rgba(${first},${second},${third},${opacity})`;
+
+    return result;
+  };
+
+  const labelsForChart = objectKeySet.map((key: string) => {
+    const option = obj[key];
+
+    let label = `${dayjs(option.start).format("D")}-${dayjs(
+      option.start
+    ).format("MMM")} ${dayjs(option.start).format("LT")}`;
+
+    let labelSize = label.length;
+    if (labelSize === 13) {
+      label = `    ${label}`;
+    } else if (labelSize === 14) {
+      label = `  ${label}`;
+    }
+    return label;
+  });
+
+  const chartData: ChartDataArgs = {
+    labels: labelsForChart,
+    datasets: [
+      {
+        label: "Votes",
+        data: objectKeySet.map((key: string) => obj[key].voters.length),
+        backgroundColor: objectKeySet.map((): string => getColor()),
+      },
+    ],
+  };
+
+  return chartData;
 };
